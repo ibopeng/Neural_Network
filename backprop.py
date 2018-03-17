@@ -37,7 +37,7 @@ def layer(input, weights_layer):
 
     layer_output = [neuron(input, weights_layer[i, :]) for i in range(m)]
 
-    return np.array(layer_output)
+    return layer_output
 
 
 def error_loss(out_label, out_pred):
@@ -45,53 +45,66 @@ def error_loss(out_label, out_pred):
     return -out_label * np.log2(out_pred) - (1-out_label) * np.log2(1-out_pred)
 
 
-def delta_j_out_unit(out_j, y_j):
+def deltas_out_layer(outputs, labels):
     """
 
-    :param out_j: prediction of the jth output neuron
-    :param y_j: label of the jth output neuron
+    :param out_j: prediction of the output layer
+    :param y_j: label of the output layer
     :return:
     """
 
-    return y_j - out_j
+    return [y_j - out_j for y_j in labels for out_j in outputs]
 
 
-def delta_j_hidden_unit(out_j, deltas_k, weights_kj):
+def deltas_hidden_neuron(output, deltas, weights):
     """
     delta_j for hidden neurons
-    :param out_j: prediction of current jth neuron
-    :param deltas_k: delta for neurons in the next layer
-    :param weights_kj: weights between neuron j in this layer to neuron k in next layer
+    :param output: prediction of current jth neuron
+    :param deltas: delta for neurons in the next layer, deltas_k
+    :param weights: weights between current single neuron j in this layer to each neuron k in next layer: weights_kj
     :return:
     """
 
-    return out_j * (1-out_j) * np.dot(deltas_k, weights_kj)
+    return output * (1-output) * np.dot(deltas, weights)
 
 
-def deltas_hidden(output_hidden, deltas_next_layer, weights_layer):
+def deltas_hidden_layer(output_hidden, deltas_next_layer, weights_layer):
 
     num_neuron = len(output_hidden) # number of neurons in this hidden layer
 
     _deltas = []  # deltas_j for hidden units
     for j in range(num_neuron):
-        weights_kj = weights_layer[:, j]
-        _deltas.append(delta_j_hidden_unit(output_hidden[j], deltas_next_layer, weights_kj))
+        # weights between current single neuron j in this layer to each neuron k in next layer:
+        # [weights_1j, weights_2j, ..., weights_kj]
+        weights_j = weights_layer[:, j]
+        _deltas.append(deltas_hidden_neuron(output_hidden[j], deltas_next_layer, weights_j))
 
-    return np.array(_deltas)
+    return _deltas
+
+
+def delta_wji(eta, deltas, outputs):
+
+    # loop over current layer
+    d_wji = []
+    for dj in deltas:
+        d_wji.append([eta * dj * oi for oi in outputs])
+
+    return d_wji
+
+
 
 
 """Define weights"""
-weights_hidden = []
-weights_hidden.append([ 1, 2,  3, -2, 1])
-weights_hidden.append([ 2, 3,  1,  4, 1])
-weights_hidden.append([-1, 1, -2,  0, 3])
+weights_hidden = [[ 1, 2,  3, -2, 1],
+                  [ 2, 3,  1,  4, 1],
+                  [-1, 1, -2,  0, 3]]
 weights_hidden = np.array(weights_hidden)
 
 weights_output = np.array([[1, 3, 2, 1]])
 
 """Define input instance and output"""
-input_instance = np.array([1, 3, 2, 1])
-output = 1
+input_instance = [1, 3, 2, 1]
+output = [1]
 
 """Question 1"""
 #Compute the hidden Layer
@@ -100,14 +113,29 @@ output_hidden = layer(input_instance, weights_hidden)
 #Compute the predicted output
 out_pred = layer(output_hidden, weights_output)
 
-print("Outputs for h1, h2, h3: ", output_hidden[:])
-print("Outputs for o: ", out_pred[0])
+print('Question 1:')
+print('Outputs for h1, h2, h3: ', output_hidden)
+print('Outputs for o: ', out_pred)
 
 
 """Question 2"""
 #Compute delta_j for output unit
-delta_out = delta_j_out_unit(out_pred[0], output)
-deltas_hidden_neurons = deltas_hidden(output_hidden, delta_out, weights_output)
-#deltas_input_neurons = deltas_hidden(input_instance, deltas_hidden_neurons, weights_hidden)
+delta_out = deltas_out_layer(out_pred, output)
+deltas_hidden_neurons = deltas_hidden_layer(output_hidden, delta_out, weights_output)
+deltas_input_neurons = deltas_hidden_layer(input_instance, deltas_hidden_neurons, weights_hidden)
 
-#print(deltas_input_neurons)
+print('\nQuestion 2:')
+print('delta of output unit', delta_out)
+print('delta of hidden unit', deltas_hidden_neurons)
+print('delta of input unit', deltas_input_neurons)
+
+"""Question 3"""
+# learning rate
+eta = 1
+# weights going to output neurons
+output_dw = delta_wji(eta, delta_out, [1] + output_hidden)  # [1] is the bias neuron
+hidden_dw = delta_wji(eta, deltas_hidden_neurons, [1] + input_instance)
+
+print('\nQuestion 3:')
+print("delta wji of output layer: ", output_dw)
+print("delta wji of hidden layer: ", hidden_dw)
