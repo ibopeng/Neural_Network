@@ -40,11 +40,6 @@ def layer(input, weights_layer):
     return layer_output
 
 
-def error_loss(out_label, out_pred):
-
-    return -out_label * np.log2(out_pred) - (1-out_label) * np.log2(1-out_pred)
-
-
 def deltas_out_layer(outputs, labels):
     """
 
