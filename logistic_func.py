@@ -116,6 +116,20 @@ def data_preproc(instance_set, meta_data):
     return instance_set_new
 
 
+def instance_set_stat(instance_set):
+
+    # extract instance data, not including label
+    instance_data = []
+    for ins in instance_set:
+        instance_data.append(ins[:-1])
+
+    # compute mean of this dataset
+    mu = np.mean(instance_data, axis=0)
+    sigma = np.std(instance_data, axis=0)
+
+    return mu, sigma
+
+
 def instance_normalization(instance):
 
     instance = np.array(instance)
@@ -128,10 +142,7 @@ def instance_normalization(instance):
     return instance
 
 
-
-
-
-def one_epoch_training(instance_set, weights, eta):
+def one_epoch_training(instance_set, weights, eta, mu, sigma):
 
     ################## Training to update weights #######################
     num_ins = len(instance_set)  # number of instances
@@ -139,8 +150,12 @@ def one_epoch_training(instance_set, weights, eta):
         instance = instance_set[i][:-1]
         label = instance_set[i][-1]
 
+        # instance standardization
+        # 0.00000001 is used for avoiding zero standard deviation
+        instance = np.divide(np.subtract(instance, mu), np.add(sigma, 0.00000001))
+
         # instance normalization
-        instance = instance_normalization(instance)
+#        instance = instance_normalization(instance)
 
         # get the output for current instance
         output = neuron_output(instance, weights)
@@ -165,8 +180,12 @@ def one_epoch_training(instance_set, weights, eta):
         instance = instance_set[i][:-1]
         label = instance_set[i][-1]
 
+        # instance standardization
+        # 0.00000001 is used for avoiding zero standard deviation
+        instance = np.divide(np.subtract(instance, mu), np.add(sigma, 0.00000001))
+
         # instance normalization
-        instance = instance_normalization(instance)
+#        instance = instance_normalization(instance)
 
         # get the output for current instance
         output = neuron_output(instance, weights)
@@ -189,22 +208,21 @@ def one_epoch_training(instance_set, weights, eta):
     return cross_entropy_err, ins_set_pred, num_correct_pred, num_mis_pred, weights
 
 
-def multi_epochs_training(num_epochs, instance_set, eta, num_vars):
-
-    # shuffle the data
-    random.shuffle(instance_set)
+def multi_epochs_training(num_epochs, instance_set, eta, num_vars, mu, sigma):
 
     # initialize weights
     weights = init_weights(num_vars)
 
     for i in range(num_epochs):
-        cn_err, pred, num_correct_pred, num_mis_pred, weights = one_epoch_training(instance_set, weights, eta)
+        # shuffle the data
+        random.shuffle(instance_set)
+        cn_err, pred, num_correct_pred, num_mis_pred, weights = one_epoch_training(instance_set, weights, eta, mu, sigma)
         print('{0}\t{1}\t{2}\t{3}'.format(i+1, cn_err, num_correct_pred, num_mis_pred))
 
     return weights
 
 
-def testset_prediction(instance_set_test, weights):
+def testset_prediction(instance_set_test, weights, mu, sigma):
 
     num_ins = len(instance_set_test)
     num_correct_pred = 0
@@ -218,8 +236,12 @@ def testset_prediction(instance_set_test, weights):
         instance = instance_set_test[i][:-1]
         label.append(instance_set_test[i][-1])
 
+        # instance standardization
+        # 0.00000001 is used for avoiding zero standard deviation
+        instance = np.divide(np.subtract(instance, mu), np.add(sigma, 0.00000001))
+
         # instance normalization
-        instance = instance_normalization(instance)
+#        instance = instance_normalization(instance)
 
         # get the output for current instance
         output = neuron_output(instance, weights)
