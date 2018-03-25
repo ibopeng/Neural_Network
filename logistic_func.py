@@ -33,7 +33,8 @@ def init_weights(num_input):
 
     # note that the bias weight should be considered
     # the 1st weight is for bias
-    w = [np.random.uniform(-0.01, 0.01) for j in range(1+num_input)]
+#    w = [np.random.uniform(-0.01, 0.01) for j in range(1+num_input)]
+    w = np.random.uniform(-0.01, 0.01, 1+num_input)
 
     return w
 
@@ -46,7 +47,8 @@ def neuron_output(input, weights_to_neuron):
     :return:
     """
 
-    net = weights_to_neuron[0] + np.dot(weights_to_neuron[1:], input)
+#    net = weights_to_neuron[0] + np.dot(weights_to_neuron[1:], input)
+    net = np.dot([1] + list(input), weights_to_neuron)
 
     # activation using sigmoid function
     nout = 1.0 / (1.0 + np.exp(-net))
@@ -54,17 +56,17 @@ def neuron_output(input, weights_to_neuron):
     return nout
 
 
-def cross_entropy_error(out_label, out_pred):
+def cross_entropy_error(label, output):
     """
     use cross entropy to compute the error between true label and predicted output
     :param out_label:
     :param out_pred:
     :return:
     """
-    return -out_label * np.log2(out_pred) - (1.0-out_label) * np.log2(1.0-out_pred)
+    return -label * np.log2(output) - (1.0-label) * np.log2(1.0-output)
 
 
-def delta_output(output, label):
+def delta_output(label, output):
     """
 
     :param out_j: prediction of the output node
@@ -83,9 +85,8 @@ def delta_w(eta, delta_out, inputs):
     :param inputs:
     :return:
     """
-
-    # loop over current layer
-    dw = [eta * delta_out * inp for inp in inputs]
+    # note that Do NOT forget to add bias node [1] to instance
+    dw = [eta * delta_out * inp for inp in [1] + list(inputs)]
 
     return dw
 
@@ -127,6 +128,9 @@ def instance_normalization(instance):
     return instance
 
 
+
+
+
 def one_epoch_training(instance_set, weights, eta):
 
     ################## Training to update weights #######################
@@ -139,14 +143,13 @@ def one_epoch_training(instance_set, weights, eta):
         instance = instance_normalization(instance)
 
         # get the output for current instance
-        out_pred = neuron_output(instance, weights)
+        output = neuron_output(instance, weights)
 
         # compute delta out
-        delta_out = delta_output(out_pred, label)
+        delta_out = delta_output(label, output)
 
         # compute delta w to update weights
-        # note that Do NOT forget to add bias node [1] to instance
-        dw = delta_w(eta, delta_out, [1] + list(instance))
+        dw = delta_w(eta, delta_out, instance)
 
         # update weights
         for k in range(len(weights)):
@@ -154,9 +157,9 @@ def one_epoch_training(instance_set, weights, eta):
 
 
     ###################### Prediction and Cross Entropy for this epoch ###################
-    pred = []  # prediction for each instance
+    ins_set_pred = []  # prediction for instance set
     num_correct_pred = 0
-    cn_err = 0  # cross entropy error
+    cross_entropy_err = 0  # cross entropy error
     # use converged weights for prediction and cross entropy computation
     for i in range(num_ins):
         instance = instance_set[i][:-1]
@@ -166,23 +169,24 @@ def one_epoch_training(instance_set, weights, eta):
         instance = instance_normalization(instance)
 
         # get the output for current instance
-        out_pred = neuron_output(instance, weights)
+        output = neuron_output(instance, weights)
 
         # compute the cross entropy error
-        cn_err = cn_err + cross_entropy_error(label, out_pred)
+        _err_ = cross_entropy_error(label, output)
+        cross_entropy_err = cross_entropy_err + _err_
 
         # store the prediction class for each instance
-        if out_pred >= 0.5:
-            pred.append(1)
+        if output >= 0.5:
+            ins_set_pred.append(1)
         else:
-            pred.append(0)
+            ins_set_pred.append(0)
 
-        if pred[i] == label:
+        if ins_set_pred[i] == label:
             num_correct_pred += 1
 
     num_mis_pred = num_ins - num_correct_pred
 
-    return cn_err, pred, num_correct_pred, num_mis_pred, weights
+    return cross_entropy_err, ins_set_pred, num_correct_pred, num_mis_pred, weights
 
 
 def multi_epochs_training(num_epochs, instance_set, eta, num_vars):
@@ -195,7 +199,59 @@ def multi_epochs_training(num_epochs, instance_set, eta, num_vars):
 
     for i in range(num_epochs):
         cn_err, pred, num_correct_pred, num_mis_pred, weights = one_epoch_training(instance_set, weights, eta)
-        print(i+1, cn_err, num_correct_pred, num_mis_pred)
+        print('{0}\t{1}\t{2}\t{3}'.format(i+1, cn_err, num_correct_pred, num_mis_pred))
+
+    return weights
+
+
+def testset_prediction(instance_set_test, weights):
+
+    num_ins = len(instance_set_test)
+    num_correct_pred = 0
+    prediction = []
+    label = []
+
+    TP = 0  # number of true postive instances that are also predicted postive
+
+    # use converged weights for prediction and cross entropy computation
+    for i in range(num_ins):
+        instance = instance_set_test[i][:-1]
+        label.append(instance_set_test[i][-1])
+
+        # instance normalization
+        instance = instance_normalization(instance)
+
+        # get the output for current instance
+        output = neuron_output(instance, weights)
+
+        # store the prediction class for each instance
+        if output >= 0.5:
+            prediction.append(1)
+        else:
+            prediction.append(0)
+
+        if prediction[i] == label[i]:
+            num_correct_pred += 1
+
+        # number of true postive instances that are also predicted postive
+        if prediction[i] == 1 and label[i] == 1:
+            TP = TP + 1
+
+        print('{0:.9f}\t{1}\t{2}'.format(output, prediction[i], label[i]))
+
+    # number of mis_prediction
+    num_mis_pred = num_ins - num_correct_pred
+    print('{0}\t{1}'.format(num_correct_pred, num_mis_pred))
+
+    # compute recall and precision
+    num_pos_pred = np.sum(prediction)  # number of predicted postives
+    num_pos_true = np.sum(label)  # number of true postives
+    recall = 1.0 * TP / num_pos_true
+    precision = 1.0 * TP / num_pos_pred
+    # compute F1 score
+    F1 = 2.0 / (1.0/recall + 1.0/precision)
+    print(F1)
+
 
 
 

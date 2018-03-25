@@ -30,6 +30,8 @@ label_range = var_ranges[-1]
 ins_set_trn = lf.data_preproc(ins_set_trn, meta_data)
 ins_set_test = lf.data_preproc(ins_set_test, meta_data)
 
-lf.multi_epochs_training(e, list(ins_set_trn), l, len(var_ranges[:-1]))
+weights = lf.multi_epochs_training(e, list(ins_set_trn), l, len(var_ranges[:-1]))
+
+lf.testset_prediction(ins_set_test, weights)
 
 print('Done')
