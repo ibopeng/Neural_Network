@@ -1,3 +1,7 @@
-from random import *
+import matplotlib.pyplot as plt
+import numpy as np
 
-print random()
+data = np.loadtxt('F1_list.txt')
+
+plt.hist(data,bins=30)
+plt.show()

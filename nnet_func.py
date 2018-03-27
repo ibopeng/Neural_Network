@@ -10,10 +10,12 @@ Logistic regression using a neural network
 import numpy as np
 import sys
 import random
+import data_proc as dp
+
 
 def read_cmdln_arg():
     """command line operation"""
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 6:
         sys.exit("Incorrect arguments...")
     else:
         l = float(sys.argv[1])  # learning rate
@@ -170,93 +172,66 @@ def create_nnet(num_inputs, num_hid_nodes, num_outputs=1):
     return np.array(weights_hidden), np.array(weights_output)
 
 
-def data_preproc(instance_set, meta_data):
-    """
-    Change the label into numerical data
-    :param instance_set:
-    :param meta_data:
-    :return:
-    """
+def nnet_feedforward(instance, mu, sigma, weights_hidden, weights_output, meta_data):
 
-    var_ranges = [meta_data[name][1] for name in meta_data.names()]
+    # instance standardization
+    instance = dp.instance_standardization(instance, mu, sigma)
 
-    label_range = var_ranges[-1]
+    # instance encoding
+    instance = dp.instance_encoding(instance, meta_data)
 
-    instance_set_new = []
-    for ins in instance_set:
-        ins_new = list(ins)
-        lb = ins_new.pop()
-        if lb == label_range[0]:
-            ins_new.append(0)
-        else:
-            ins_new.append(1)
-        instance_set_new.append(ins_new)
+    # ********** Feed forward ********** #
+    # outputs at hidden layer
+    out_hidden_layer = layer_output(instance, weights_hidden)
 
-    return instance_set_new
+    # outputs at output layer
+    out_output_layer = layer_output(out_hidden_layer, weights_output)
+
+    return out_hidden_layer, out_output_layer
 
 
-def instance_set_stat(instance_set):
+def nnet_backpropagate(labels, out_output_layer, out_hidden_layer, weights_output, weights_hidden, learning_rate, instance):
 
-    # extract instance data, not including label
-    instance_data = []
-    for ins in instance_set:
-        instance_data.append(ins[:-1])
+    # ********** Backpropagate ********** #
+    # compute delta at output layer
+    # since the operation is on list, so change label to be a list by [lable]
+    delta_o = delta_output_layer(labels, out_output_layer)
 
-    # compute mean of this dataset
-    mu = np.mean(instance_data, axis=0)
-    sigma = np.std(instance_data, axis=0)
+    # compute delta at hidden layer
+    delta_h = deltas_hidden_layer(out_hidden_layer, delta_o, weights_output)
 
-    return mu, sigma
+    # compute delta w between hidden layer and output layer
+    dw_o_h = delta_wji(learning_rate, delta_o, out_hidden_layer)
+    # update weights
+    weights_output = np.add(weights_output, dw_o_h)
+
+    # compute delta w between input layer and hidden layer
+    dw_h_i = delta_wji(learning_rate, delta_h, instance)
+    weights_hidden = np.add(weights_hidden, dw_h_i)
+
+    return weights_hidden, weights_output
 
 
-def one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_output):
-    """
+def one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_output, meta_data):
 
-    :param eta:
-    :param instance_set:
-    :param mu:
-    :param sigma:
-    :param weights_hidden:
-    :param weights_output:
-    :return:
-    """
-
-    """ Training to update weights """
+    # ---------------------- Training to update weights ---------------------- #
     num_ins = len(instance_set)  # number of instances
 
     for i in range(num_ins):
-        instance = instance_set[i][:-1]  # instance data, excluding the label
-        label = instance_set[i][-1]  # numerical lable of current instance
+        instance = instance_set[i][:-1]
+        label = instance_set[i][-1]
 
-        # instance standardization
-        # 0.00000001 is used for avoiding zero standard deviation
-        instance = np.divide(np.subtract(instance, mu), np.add(sigma, 0.00000001))
-
-        # ********** Feed forward ********** #
-        # outputs at hidden layer
-        out_hidden_layer = layer_output(instance, weights_hidden)
-
-        # outputs at output layer
-        out_output_layer = layer_output(out_hidden_layer, weights_output)
+        # ********** Feedforward ********** #
+        out_hidden_layer, out_output_layer = nnet_feedforward(instance,mu, sigma,
+                                                              weights_hidden, weights_output,
+                                                              meta_data)
 
         # ********** Backpropagate ********** #
-        # compute delta at output layer
-        # since the operation is on list, so change label to be a list by [lable]
-        delta_o = delta_output_layer([label], out_output_layer)
+        weights_hidden, weights_output = nnet_backpropagate([label], out_output_layer, out_hidden_layer,
+                                                            weights_output, weights_hidden,
+                                                            eta, instance)
 
-        # compute delta at hidden layer
-        delta_h = deltas_hidden_layer(out_hidden_layer, delta_o, weights_output)
-
-        # compute delta w between hidden layer and output layer
-        dw_o_h = delta_wji(eta, delta_o, out_hidden_layer)
-        # update weights
-        weights_output = np.add(weights_output, dw_o_h)
-
-        # compute delta w between input layer and hidden layer
-        dw_h_i = delta_wji(eta, delta_h, instance)
-        weights_hidden = np.add(weights_hidden, dw_h_i)
-
-    """Prediction and Cross Entropy for this epoch"""
+    # ---------------------- Prediction for training set ------------------------ #
     ins_set_pred = []  # prediction for instance set
     num_correct_pred = 0
     crs_ent_err = 0  # cross entropy error
@@ -266,16 +241,10 @@ def one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_out
         instance = instance_set[i][:-1]
         label = instance_set[i][-1]
 
-        # instance standardization
-        # 0.00000001 is used for avoiding zero standard deviation
-        instance = np.divide(np.subtract(instance, mu), np.add(sigma, 0.00000001))
-
-        # ******** Feed forward ************#
-        # outputs at hidden layer
-        out_hidden_layer = layer_output(instance, weights_hidden)
-
-        # outputs at output layer
-        out_output_layer = layer_output(out_hidden_layer, weights_output)
+        # ********** Feedforward ********** #
+        out_hidden_layer, out_output_layer = nnet_feedforward(instance,mu, sigma,
+                                                              weights_hidden, weights_output,
+                                                              meta_data)
 
         # note that there is only one output node in this neural network
         # output_layer_out is a list, not a single numerical number
@@ -300,44 +269,43 @@ def one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_out
     return crs_ent_err, ins_set_pred, num_correct_pred, num_mis_pred, weights_hidden, weights_output
 
 
-def multi_epochs_training(eta, num_hid_nodes, num_epochs, instance_set, num_vars, mu, sigma):
+def multi_epochs_training(eta, num_hid_nodes, num_epochs, instance_set, mu, sigma, meta_data):
+
+    # number of variables
+    num_input_nodes = dp.input_dimension(meta_data)
 
     # create neural network
-    weights_hidden, weights_output = create_nnet(num_vars, num_hid_nodes, 1)
+    weights_hidden, weights_output = create_nnet(num_input_nodes, num_hid_nodes, 1)
 
     for i in range(num_epochs):
         # shuffle the data
         random.shuffle(instance_set)
-        crs_ent_err, _, num_correct_pred, num_mis_pred, weights_hidden, weights_output = one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_output)
+        crs_ent_err, _, num_correct_pred, num_mis_pred, weights_hidden, weights_output = one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_output, meta_data)
         print('{0}\t{1}\t{2}\t{3}'.format(i+1, crs_ent_err, num_correct_pred, num_mis_pred))
 
     return weights_hidden, weights_output
 
 
-def testset_prediction(instance_set_test, mu, sigma, weights_hidden, weights_output):
+def testset_prediction(instance_set_test, mu, sigma, weights_hidden, weights_output, meta_data):
 
     num_ins = len(instance_set_test)  # number of instances in this dataset
     num_correct_pred = 0  # number of correctly predicted instances
     ins_set_pred = []  # prediction for instance set
-    label = []  # labels for the instance set
+    labels = []  # labels for the instance set
 
     TP = 0  # number of true postives that are also predicted postive
 
     # use converged weights for prediction and cross entropy computation
     for i in range(num_ins):
         instance = instance_set_test[i][:-1]
-        label.append(instance_set_test[i][-1])
+        lb = instance_set_test[i][-1]
 
-        # instance standardization
-        # 0.00000001 is used for avoiding zero standard deviation
-        instance = np.divide(np.subtract(instance, mu), np.add(sigma, 0.00000001))
-
-        # ******** Feed forward ************#
-        # outputs at hidden layer
-        out_hidden_layer = layer_output(instance, weights_hidden)
-
-        # outputs at output layer
-        out_output_layer = layer_output(out_hidden_layer, weights_output)
+        # ********** Feedforward ********** #
+        out_hidden_layer, out_output_layer = nnet_feedforward(instance, mu, sigma,
+                                                              weights_hidden, weights_output,
+                                                              meta_data)
+        # store the label for this instance
+        labels.append(lb)
 
         # note that there is only one output node in this neural network
         # output_layer_out is a list, not a single numerical number
@@ -349,27 +317,21 @@ def testset_prediction(instance_set_test, mu, sigma, weights_hidden, weights_out
         else:
             ins_set_pred.append(0)
 
-        if ins_set_pred[i] == label[i]:
+        if ins_set_pred[i] == labels[i]:
             num_correct_pred += 1
 
         # number of true postive instances that are also predicted postive
-        if ins_set_pred[i] == 1 and label[i] == 1:
+        if ins_set_pred[i] == 1 and labels[i] == 1:
             TP = TP + 1
 
-        print('{0:.9f}\t{1}\t{2}'.format(output, ins_set_pred[i], label[i]))
+        print('{0:.9f}\t{1}\t{2}'.format(output, ins_set_pred[i], labels[i]))
 
     # number of mis_prediction
     num_mis_pred = num_ins - num_correct_pred
     print('{0}\t{1}'.format(num_correct_pred, num_mis_pred))
 
     # compute recall and precision
-    num_pos_pred = np.sum(ins_set_pred)  # number of predicted postives
-    num_pos_true = np.sum(label)  # number of true postives
-    recall = 1.0 * TP / num_pos_true
-    precision = 1.0 * TP / num_pos_pred
-
-    # compute F1 score
-    F1 = 2.0 / (1.0/recall + 1.0/precision)
+    F1, recall, precision = dp.F1_score(ins_set_pred, labels, TP)
     print(F1)
 
     return ins_set_pred, recall, precision, F1
