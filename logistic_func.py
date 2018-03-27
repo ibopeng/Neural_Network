@@ -174,7 +174,7 @@ def one_epoch_training(instance_set, weights, eta, mu, sigma):
     ###################### Prediction and Cross Entropy for this epoch ###################
     ins_set_pred = []  # prediction for instance set
     num_correct_pred = 0
-    cross_entropy_err = 0  # cross entropy error
+    crs_ent_err = 0  # cross entropy error
     # use converged weights for prediction and cross entropy computation
     for i in range(num_ins):
         instance = instance_set[i][:-1]
@@ -192,7 +192,7 @@ def one_epoch_training(instance_set, weights, eta, mu, sigma):
 
         # compute the cross entropy error
         _err_ = cross_entropy_error(label, output)
-        cross_entropy_err = cross_entropy_err + _err_
+        crs_ent_err = crs_ent_err + _err_
 
         # store the prediction class for each instance
         if output >= 0.5:
@@ -205,7 +205,7 @@ def one_epoch_training(instance_set, weights, eta, mu, sigma):
 
     num_mis_pred = num_ins - num_correct_pred
 
-    return cross_entropy_err, ins_set_pred, num_correct_pred, num_mis_pred, weights
+    return crs_ent_err, ins_set_pred, num_correct_pred, num_mis_pred, weights
 
 
 def multi_epochs_training(num_epochs, instance_set, eta, num_vars, mu, sigma):
@@ -216,8 +216,8 @@ def multi_epochs_training(num_epochs, instance_set, eta, num_vars, mu, sigma):
     for i in range(num_epochs):
         # shuffle the data
         random.shuffle(instance_set)
-        cn_err, pred, num_correct_pred, num_mis_pred, weights = one_epoch_training(instance_set, weights, eta, mu, sigma)
-        print('{0}\t{1}\t{2}\t{3}'.format(i+1, cn_err, num_correct_pred, num_mis_pred))
+        crs_ent_err, _, num_correct_pred, num_mis_pred, weights = one_epoch_training(instance_set, weights, eta, mu, sigma)
+        print('{0}\t{1}\t{2}\t{3}'.format(i+1, crs_ent_err, num_correct_pred, num_mis_pred))
 
     return weights
 
@@ -226,7 +226,7 @@ def testset_prediction(instance_set_test, weights, mu, sigma):
 
     num_ins = len(instance_set_test)
     num_correct_pred = 0
-    prediction = []
+    ins_set_pred = []
     label = []
 
     TP = 0  # number of true postive instances that are also predicted postive
@@ -240,39 +240,39 @@ def testset_prediction(instance_set_test, weights, mu, sigma):
         # 0.00000001 is used for avoiding zero standard deviation
         instance = np.divide(np.subtract(instance, mu), np.add(sigma, 0.00000001))
 
-        # instance normalization
-#        instance = instance_normalization(instance)
-
         # get the output for current instance
         output = neuron_output(instance, weights)
 
         # store the prediction class for each instance
         if output >= 0.5:
-            prediction.append(1)
+            ins_set_pred.append(1)
         else:
-            prediction.append(0)
+            ins_set_pred.append(0)
 
-        if prediction[i] == label[i]:
+        if ins_set_pred[i] == label[i]:
             num_correct_pred += 1
 
         # number of true postive instances that are also predicted postive
-        if prediction[i] == 1 and label[i] == 1:
+        if ins_set_pred[i] == 1 and label[i] == 1:
             TP = TP + 1
 
-        print('{0:.9f}\t{1}\t{2}'.format(output, prediction[i], label[i]))
+        print('{0:.9f}\t{1}\t{2}'.format(output, ins_set_pred[i], label[i]))
 
     # number of mis_prediction
     num_mis_pred = num_ins - num_correct_pred
     print('{0}\t{1}'.format(num_correct_pred, num_mis_pred))
 
     # compute recall and precision
-    num_pos_pred = np.sum(prediction)  # number of predicted postives
+    num_pos_pred = np.sum(ins_set_pred)  # number of predicted postives
     num_pos_true = np.sum(label)  # number of true postives
     recall = 1.0 * TP / num_pos_true
     precision = 1.0 * TP / num_pos_pred
+
     # compute F1 score
     F1 = 2.0 / (1.0/recall + 1.0/precision)
     print(F1)
+
+    return ins_set_pred, recall, precision, F1
 
 
 
