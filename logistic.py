@@ -13,12 +13,12 @@ import data_proc as dp
 
 
 """ Input parameters"""
-l = 0.01
-e = 3
-filename_trn = './hw4/magic_train.arff'
-filename_test = './hw4/magic_test.arff'
+#l = 0.01
+#e = 3
+#filename_trn = './hw4/magic_train.arff'
+#filename_test = './hw4/magic_test.arff'
 
-#l, e, filename_trn, filename_test = lf.read_cmdln_arg()
+l, e, filename_trn, filename_test = lf.read_cmdln_arg()
 
 
 """ Load training and testing data"""
