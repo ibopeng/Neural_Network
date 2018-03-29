@@ -172,13 +172,7 @@ def create_nnet(num_inputs, num_hid_nodes, num_outputs=1):
     return np.array(weights_hidden), np.array(weights_output)
 
 
-def nnet_feedforward(instance, mu, sigma, weights_hidden, weights_output, meta_data):
-
-    # instance standardization
-    instance = dp.instance_standardization(instance, mu, sigma)
-
-    # instance encoding
-    instance = dp.instance_encoding(instance, meta_data)
+def nnet_feedforward(instance, weights_hidden, weights_output):
 
     # ********** Feed forward ********** #
     # outputs at hidden layer
@@ -214,37 +208,33 @@ def nnet_backpropagate(labels, out_output_layer, out_hidden_layer, weights_outpu
 
 def one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_output, meta_data):
 
-    # ---------------------- Training to update weights ---------------------- #
+    # *********** Training to update weights *********** #
     num_ins = len(instance_set)  # number of instances
 
     for i in range(num_ins):
-        instance = instance_set[i][:-1]
-        label = instance_set[i][-1]
+        # preprocessing for current instance
+        instance, label = dp.instance_preproc(instance_set[i], mu, sigma, meta_data)
 
-        # ********** Feedforward ********** #
-        out_hidden_layer, out_output_layer = nnet_feedforward(instance,mu, sigma,
-                                                              weights_hidden, weights_output,
-                                                              meta_data)
+        # Feedforward
+        out_hidden_layer, out_output_layer = nnet_feedforward(instance, weights_hidden, weights_output)
 
-        # ********** Backpropagate ********** #
+        # Backpropagate
         weights_hidden, weights_output = nnet_backpropagate([label], out_output_layer, out_hidden_layer,
                                                             weights_output, weights_hidden,
                                                             eta, instance)
 
-    # ---------------------- Prediction for training set ------------------------ #
+    # *********** Prediction for training set *********** #
     ins_set_pred = []  # prediction for instance set
     num_correct_pred = 0
     crs_ent_err = 0  # cross entropy error
 
     # use converged weights for prediction and cross entropy computation
     for i in range(num_ins):
-        instance = instance_set[i][:-1]
-        label = instance_set[i][-1]
+        # preprocessing for current instance
+        instance, label = dp.instance_preproc(instance_set[i], mu, sigma, meta_data)
 
         # ********** Feedforward ********** #
-        out_hidden_layer, out_output_layer = nnet_feedforward(instance,mu, sigma,
-                                                              weights_hidden, weights_output,
-                                                              meta_data)
+        out_hidden_layer, out_output_layer = nnet_feedforward(instance, weights_hidden, weights_output)
 
         # note that there is only one output node in this neural network
         # output_layer_out is a list, not a single numerical number
@@ -277,18 +267,19 @@ def multi_epochs_training(eta, num_hid_nodes, num_epochs, instance_set, mu, sigm
     # create neural network
     weights_hidden, weights_output = create_nnet(num_input_nodes, num_hid_nodes, 1)
 
+    
     for i in range(num_epochs):
-        # shuffle the data
-        random.shuffle(instance_set)
+    	# shuffle the data
+    	random.shuffle(instance_set)
         crs_ent_err, _, num_correct_pred, num_mis_pred, weights_hidden, weights_output = one_epoch_training(eta, instance_set, mu, sigma, weights_hidden, weights_output, meta_data)
         print('{0}\t{1}\t{2}\t{3}'.format(i+1, crs_ent_err, num_correct_pred, num_mis_pred))
 
     return weights_hidden, weights_output
 
 
-def testset_prediction(instance_set_test, mu, sigma, weights_hidden, weights_output, meta_data):
+def testset_prediction(instance_set, mu, sigma, weights_hidden, weights_output, meta_data):
 
-    num_ins = len(instance_set_test)  # number of instances in this dataset
+    num_ins = len(instance_set)  # number of instances in this dataset
     num_correct_pred = 0  # number of correctly predicted instances
     ins_set_pred = []  # prediction for instance set
     labels = []  # labels for the instance set
@@ -297,15 +288,13 @@ def testset_prediction(instance_set_test, mu, sigma, weights_hidden, weights_out
 
     # use converged weights for prediction and cross entropy computation
     for i in range(num_ins):
-        instance = instance_set_test[i][:-1]
-        lb = instance_set_test[i][-1]
+        # preprocessing for current instance
+        instance, label = dp.instance_preproc(instance_set[i], mu, sigma, meta_data)
 
         # ********** Feedforward ********** #
-        out_hidden_layer, out_output_layer = nnet_feedforward(instance, mu, sigma,
-                                                              weights_hidden, weights_output,
-                                                              meta_data)
+        out_hidden_layer, out_output_layer = nnet_feedforward(instance, weights_hidden, weights_output)
         # store the label for this instance
-        labels.append(lb)
+        labels.append(label)
 
         # note that there is only one output node in this neural network
         # output_layer_out is a list, not a single numerical number

@@ -79,7 +79,7 @@ def instance_set_stat(instance_set, meta_data):
             val_i = [ins[i] for ins in instance_set]
             # compute mean and std
             mu.append(np.mean(val_i))
-            sigma.append(np.std(val_i) + 0.000000001)
+            sigma.append(np.std(val_i) + 0.0000000001)
         else:  # nominal variable
             mu.append(None)
             sigma.append(None)
@@ -115,6 +115,28 @@ def instance_encoding(instance, meta_data):
             ins_new += var_val  # var_val is a list, append it to the new ins
 
     return ins_new
+
+
+def instance_preproc(instance_data_label, mu, sigma, meta_data):
+    """
+    preprocessing for current instance
+    :param instance_data_label: instance with data and label
+    :param mu:
+    :param sigma:
+    :param meta_data:
+    :return:
+    """
+
+    instance = instance_data_label[:-1]
+    label = instance_data_label[-1]
+
+    # instance standardization
+    instance = instance_standardization(instance, mu, sigma)
+
+    # instance encoding
+    instance = instance_encoding(instance, meta_data)
+
+    return instance, label
 
 
 def F1_score(ins_set_pred, labels, TP):

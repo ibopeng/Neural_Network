@@ -93,13 +93,7 @@ def delta_w(eta, delta_out, inputs):
     return np.array(dw)
 
 
-def logistic_output(instance, mu, sigma, weights, meta_data):
-
-    # instance standardization
-    instance = dp.instance_standardization(instance, mu, sigma)
-
-    # instance encoding
-    instance = dp.instance_encoding(instance, meta_data)
+def logistic_feedforward(instance, weights):
 
     # get the output for current instance
     output = neuron_output(instance, weights)
@@ -107,43 +101,46 @@ def logistic_output(instance, mu, sigma, weights, meta_data):
     return output
 
 
-def one_epoch_training(instance_set, weights, eta, mu, sigma, meta_data):
+def logistic_backpropagate(label, output, learning_rate, instance, weights):
+    # compute delta out
+    delta_out = delta_output(label, output)
 
-    label_name = meta_data.names()[-1]
-    label_range = meta_data[label_name][1]
+    # compute delta w to update weights
+    dw = delta_w(learning_rate, delta_out, instance)
+
+    # update weights
+    weights = weights + dw
+
+    return weights
+
+
+def one_epoch_training(instance_set, weights, eta, mu, sigma, meta_data):
 
     # *********** Training to update weights *********** #
     num_ins = len(instance_set)  # number of instances
     for i in range(num_ins):
-        instance = instance_set[i][:-1]
-        label = instance_set[i][-1]
+        # preprocessing for current instance
+        instance, label = dp.instance_preproc(instance_set[i], mu, sigma, meta_data)
 
-        # ********** Feedforward ********** #
-        output = logistic_output(instance, mu, sigma, weights, meta_data)
+        # Feedforward
+        output = logistic_feedforward(instance, weights)
 
-        # compute delta out
-        delta_out = delta_output(label, output)
-
-        # compute delta w to update weights
-        dw = delta_w(eta, delta_out, instance)
-
-        # update weights
-        weights = weights + dw
-#        for k in range(len(weights)):
-#            weights[k] = weights[k] + dw[k]
+        # backpropagate
+        weights = logistic_backpropagate(label, output, eta, instance, weights)
 
 
     # *********** Prediction and Cross Entropy for this epoch *********** #
     ins_set_pred = []  # prediction for instance set
     num_correct_pred = 0
     crs_ent_err = 0  # cross entropy error
+
     # use converged weights for prediction and cross entropy computation
     for i in range(num_ins):
-        instance = instance_set[i][:-1]
-        label = instance_set[i][-1]
 
-        # ********** Feedforward ********** #
-        output = logistic_output(instance, mu, sigma, weights, meta_data)
+        instance, label = dp.instance_preproc(instance_set[i], mu, sigma, meta_data)
+
+        # Feedforward
+        output = logistic_feedforward(instance, weights)
 
         # compute the cross entropy error
         _err_ = cross_entropy_error(label, output)
@@ -180,12 +177,9 @@ def multi_epochs_training(num_epochs, instance_set, eta, mu, sigma, meta_data):
     return weights
 
 
+def testset_prediction(instance_set, weights, mu, sigma, meta_data):
 
-
-
-def testset_prediction(instance_set_test, weights, mu, sigma, meta_data):
-
-    num_ins = len(instance_set_test)
+    num_ins = len(instance_set)
     num_correct_pred = 0
     ins_set_pred = []
     labels = []
@@ -194,11 +188,11 @@ def testset_prediction(instance_set_test, weights, mu, sigma, meta_data):
 
     # use converged weights for prediction and cross entropy computation
     for i in range(num_ins):
-        instance = instance_set_test[i][:-1]
-        label = instance_set_test[i][-1]
 
-        # ********** Feedforward ********** #
-        output = logistic_output(instance, mu, sigma, weights, meta_data)
+        instance, label = dp.instance_preproc(instance_set[i], mu, sigma, meta_data)
+
+        # Feedforward
+        output = logistic_feedforward(instance, weights)
 
         # store the label for this instance
         labels.append(label)
